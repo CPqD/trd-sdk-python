@@ -64,8 +64,8 @@ result = client.wait_result(audio_id)
 #### Impressão de resultado via _callback_:
 
 ```python
-def callback(response):
-    print(response)
+def callback(audio_id, response):
+    print(audio_id, response)
 
 client.register_callback(callback)
 audio_id, result = client.transcribe("/caminho/para/audio.wav")
@@ -80,7 +80,7 @@ armazenar os resultados para uso fora da _callback_.
 
 ```python
 class Context():
-    def callback(self, response):
+    def callback(self, audio_id, response):
         if response["event"] == "finished":
             self.result = response["result"]
 
