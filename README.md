@@ -61,6 +61,9 @@ audio_id = client.transcribe("/caminho/para/audio.wav", timeout=-1)
 result = client.wait_result(audio_id)
 ```
 
+As operações `transcribe` com `timeout>=0` e `wait_result` por padrão deletam o
+arquivo após o término da transcrição (`delete_after=True`).
+
 #### Impressão de resultado via _callback_:
 
 ```python
@@ -70,10 +73,6 @@ def callback(audio_id, response):
 client.register_callback(callback)
 audio_id, result = client.transcribe("/caminho/para/audio.wav")
 ```
-
-Nesta operação, serão emitidos dois eventos de resposta (um `"finished"` e um `"deleted"`),
-uma vez que a operação de _transcribe_ por padrão deleta o arquivo do servidor após
-término (`delete_after=True`).
 
 É possível melhorar o controle de resultado usando uma classe de contexto para
 armazenar os resultados para uso fora da _callback_.
