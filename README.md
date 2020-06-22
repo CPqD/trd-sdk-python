@@ -37,7 +37,7 @@ simples para acesso externo.
 from cpqdtrd import TranscriptionClient
 
 client = TranscriptionClient(
-    api_host="http://speech.cpqd.com.br",
+    api_host="https://speech.cpqd.com.br",
     api_port=443,      # Inbound
     webhook_port=8443, # Outbound, precisa de redirecionamento para a WAN
     webhook_listener='0.0.0.0',
