@@ -25,9 +25,8 @@ import uuid
 class TranscriptionClient:
     def __init__(
         self,
-        api_host,
-        api_port=8080,
-        webhook_port=5000,
+        api_url,
+        webhook_port=8443,
         webhook_host=None,
         webhook_listener="0.0.0.0",
         webhook_protocol="https",
@@ -41,7 +40,7 @@ class TranscriptionClient:
 
         self._flask_kwargs = flask_kwargs
         self.api = TranscriptionApi(
-            api_host, api_port, username=username, password=password
+            api_url, username=username, password=password
         )
 
         if webhook_host is not None:
