@@ -3,7 +3,7 @@ SDK - CPQD Transcrição de Diálogos
 
 O kit de desenvolvimento para o CPQD Transcrição de Diálogos visa
 facilitar a integração do transcritor em aplicações em Python. Ele
-é uma alternativa à [API REST](https://speechweb.cpqd.com.br/trd/docs/2.4/)
+é uma alternativa à [API REST](https://speechweb.cpqd.com.br/trd/docs/latest/)
 oficial, com as seguintes facilidades implementadas:
 
  - Encapsulamento da API REST com a biblioteca `requests`
