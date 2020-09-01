@@ -48,7 +48,7 @@ client = TranscriptionClient(
 #### Operação de transcrição simples:
 
 ```python
-audio_id, result = client.transcribe("/caminho/para/audio.wav")
+job_id, result = client.transcribe("/caminho/para/audio.wav")
 ```
 
 Alternativamente, o usuário pode escolher apenas iniciar a transcrição
@@ -56,8 +56,8 @@ e esperar pelo resultado posteriormente usando um valor negativo para o
 parâmetro de timeout:
 
 ```python
-audio_id = client.transcribe("/caminho/para/audio.wav", timeout=-1)
-result = client.wait_result(audio_id)
+job_id = client.transcribe("/caminho/para/audio.wav", timeout=-1)
+result = client.wait_result(job_id)
 ```
 
 As operações `transcribe` com `timeout>=0` e `wait_result` por padrão deletam o
@@ -66,11 +66,11 @@ arquivo após o término da transcrição (`delete_after=True`).
 #### Impressão de resultado via _callback_:
 
 ```python
-def callback(audio_id, response):
-    print(audio_id, response)
+def callback(job_id, response):
+    print(job_id, response)
 
 client.register_callback(callback)
-audio_id, result = client.transcribe("/caminho/para/audio.wav")
+job_id, result = client.transcribe("/caminho/para/audio.wav")
 ```
 
 É possível melhorar o controle de resultado usando uma classe de contexto para
@@ -78,13 +78,22 @@ armazenar os resultados para uso fora da _callback_.
 
 ```python
 class Context():
-    def callback(self, audio_id, response):
-        if response["event"] == "finished":
-            self.result = response["result"]
+    def __init__(self):
+        self.results = {}
+
+    def callback(self, job_id, response):
+        job = response["job"]
+        if job["status"] == "COMPLETED":
+            job_id = job["id"]
+            segments = response["segments"]
+            self.results[job_id] = {
+                "job": job,
+                "segments": segments}
+
 
 c = Context()
 client.register_callback(c.callback)
-audio_id, result = client.transcribe("example.wav")
+job_id, result = client.transcribe("example.wav")
 print(c.result)
 ```
 
@@ -112,23 +121,34 @@ class Context:
         self.lock = RLock()
         self.pbar = tqdm.tqdm(total=len(to_transcribe))
 
-    def callback(self, audio_id, response):
-        if response["event"] == "finished":
-            result = response["result"]
-            self.results[result["filename"]] = result
+    def callback(self, job_id, response):
+        job = response["job"]
+        if job["status"] == "COMPLETED":
+            job_id = job["id"]
+            segments = response["segments"]
+            self.results[job_id] = {
+                "job": job,
+                "segments": segments}
             with self.lock:
                 self.pbar.update(1)
 
 c = Context()
 client.register_callback(c.callback)
 
-# Armazena todos os audio_ids para esperar os resultados.
-audio_ids = []
+# Armazena todos os job_ids para esperar os resultados.
+job_ids = []
 for path in to_transcribe:
-    audio_ids.append(client.transcribe(path, timeout=-1))
-for audio_id in audio_ids:
-    client.wait_result(audio_id)
-print(c.results)
+    job_ids.append(client.transcribe(path, timeout=-1))
+for job_id in job_ids:
+    client.wait_result(job_id)
+for id in c.results:
+    print("id: {}\n\tstatus:{}\n\tfilename:{}\n\tsegments:{}\n".format(
+        id,
+        c.results[id]["job"]["status"],
+        c.results[id]["job"]["filename"],
+        c.results[id]["segments"],
+        )
+    )
 ```
 
 ## Segurança
