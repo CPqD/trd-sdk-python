@@ -41,7 +41,8 @@ class TranscriptionApi:
         self._log = logging.getLogger("cpqdtrd.api")
         while not ok:
             try:
-                self.query()
+                for r in self.query():
+                    self._log.debug("response: {}".format(r))
                 ok = True
             except Exception as e:
                 self._log.warning("Exception on API list request: {}".format(e))
