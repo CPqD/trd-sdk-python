@@ -267,7 +267,7 @@ class TranscriptionClient:
         webhooks += ["{}/{}".format(webhook_root, name) for name in self._callbacks]
 
         # Upload audio file. Currently only expects
-        r = self.api.upload(path, callbacks_url=webhooks)
+        r = self.api.create(path, callbacks_url=webhooks)
         r.raise_for_status()
         job = r.json()["job"]
         job_id = job["id"]

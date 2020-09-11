@@ -11,6 +11,7 @@ import time
 import logging
 import urllib
 import json
+from datetime import datetime
 from typing import List, Dict, Union
 from contextlib import closing
 
@@ -53,8 +54,8 @@ class TranscriptionApi:
                     msg = "API call retries exceeded"
                     raise self.TimeoutException(msg)
 
-    def upload(self, file_path: str, tag: str = None, config: List[str] = None, callbacks_url: List = []):
-        upload_request = "{}/job/upload/".format(self._url)
+    def create(self, file_path: str, tag: str = None, config: List[str] = None, callbacks_url: List = []):
+        upload_request = "{}/job/create/".format(self._url)
         if tag:
             upload_request += "?tag={}".format(tag)
 
@@ -71,6 +72,12 @@ class TranscriptionApi:
                 upload_request, data=data, files=upload_file, auth=self._auth
             )
 
+    def list_jobs(self, page: int = 1, limit: int = 100, tag: str = None):
+        params = {"page": page, "limit": limit}
+        if tag:
+            params["tag"] = tag
+        return requests.get("{}/job".format(self._url), params=params, auth=self._auth)
+
     def status(self, job_id: str):
         return requests.get("{}/job/status/{}".format(self._url, job_id), auth=self._auth)
 
@@ -84,7 +91,7 @@ class TranscriptionApi:
         return requests.post("{}/job/retry/{}".format(self._url, job_id), auth=self._auth)
 
     def delete(self, job_id: str):
-        return requests.delete("{}/job/delete/{}".format(self._url, job_id), auth=self._auth)
+        return requests.delete("{}/job/{}".format(self._url, job_id), auth=self._auth)
 
     def query(
         self,
@@ -94,41 +101,35 @@ class TranscriptionApi:
         projection: List[str] = [],
         get_result: bool = False,
         page: int = 1,
-        page_size: int = 100,
+        limit: int = 100,
+        start_date: datetime = None,
+        end_date: datetime = None,
     ):
-        request = "{}/job/?".format(self._url)
+        request = "{}/query/job".format(self._url)
 
-        for tag in tags:
-            request += "&tag={}".format(tag)
-        for filename in filenames:
-            request += "&filename={}".format(filename)
-        for status in statuses:
-            request += "&status={}".format(status)
-
+        params = {}
+        if tags:
+            params["tag"] = tags
+        if filenames:
+            params["filenames"] = filenames
+        if statuses:
+            params["status"] = statuses
+        if projection:
+            params["projection"] = projection
         if get_result:
-            request += "&result=True"
+            params["result"] = "true"
 
-        # projection
-        assert(isinstance(projection, list))
-        for p in projection:
-            request += "&projection={}".format(p)
+        params["page"] = page
+        params["limit"] = limit
 
-        request += "&page={}&page_size={}".format(page, page_size)
+        if start_date:
+            params["start_date"] = start_date.isoformat()
+        if end_date:
+            params["end_date"] = end_date.isoformat()
 
-        with closing(requests.get(request, stream=True, auth=self._auth)) as r:
+        with closing(requests.get(request, params=params, stream=True, auth=self._auth)) as r:
             for line in r.iter_lines():
                 yield line
-
-    def query_pages(self, **kwargs):
-        next_page = True
-        n = 1
-        while next_page:
-            for _page in self.query(page=n, page_size=100, **kwargs):
-                n += 1
-                if len(_page) > 2:
-                    yield json.loads(_page)
-                else:
-                    next_page = False
 
     def webhook_whoami(self):
         whoami_request = "{}/webhook/whoami".format(self._url)
