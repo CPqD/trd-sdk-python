@@ -18,7 +18,7 @@ Testado com Python 3.7. Para dependências, ver _requirements.txt_.
 Para instalação automática do SDK e dependências via `pip`, execute a linha abaixo:
 
 ```shell
-$ pip install git+https://github.com/CPqD/trd-sdk-python.git@master
+$ pip install git+https://github.com/CPqD/trd-sdk-python.git@feature/api-v3
 ```
 
 #### Servidor WSGI para _callbacks_ via Webhooks
@@ -37,9 +37,11 @@ simples para acesso externo.
 from cpqdtrd import TranscriptionClient
 
 client = TranscriptionClient(
-    api_url="https://speech.cpqd.com.br/trd",
-    webhook_port=8443, # Outbound, precisa de redirecionamento para a WAN
+    api_url="https://speech.cpqd.com.br/trd/v3",
+    webhook_port=443, # Outbound, precisa de redirecionamento para a WAN
+    webhook_host="100.100.100.100", # IP externo ou DNS
     webhook_listener='0.0.0.0',
+    webhook_protocol="https",
     username="<username>",
     password="<password>"
     )

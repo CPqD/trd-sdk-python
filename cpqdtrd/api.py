@@ -55,7 +55,7 @@ class TranscriptionApi:
                     raise self.TimeoutException(msg)
 
     def create(self, file_path: str, tag: str = None, config: List[str] = None, callbacks_url: List = []):
-        upload_request = "{}/job/create/".format(self._url)
+        upload_request = "{}/job/create".format(self._url)
         if tag:
             upload_request += "?tag={}".format(tag)
 
@@ -152,7 +152,6 @@ class TranscriptionApi:
             payload["timeout"] = int(timeout)
         if retries:
             payload["retries"] = int(retries)
-
         if crt is not None:
             r = requests.post(
                 test_request, params=payload, auth=self._auth, json={"crt": crt, "token": token}
