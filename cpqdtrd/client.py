@@ -218,7 +218,7 @@ class TranscriptionClient:
             del self._callbacks[name]
         self._reset_start()
 
-    def transcribe(self, path, timeout="auto", delete_after=True):
+    def transcribe(self, path, tag=None, config=None, timeout="auto", delete_after=True):
         """
         Transcribe an audio file.
 
@@ -267,7 +267,7 @@ class TranscriptionClient:
         webhooks += ["{}/{}".format(webhook_root, name) for name in self._callbacks]
 
         # Upload audio file. Currently only expects
-        r = self.api.create(path, callbacks_url=webhooks)
+        r = self.api.create(path, tag=tag, config=config, callbacks_url=webhooks)
         r.raise_for_status()
         job = r.json()["job"]
         job_id = job["id"]
