@@ -50,6 +50,9 @@ class TranscriptionClient:
         self._webhook_port = webhook_port
         self._webhook_listener = webhook_listener
         self._webhook_protocol = webhook_protocol
+        self._http_server = None
+        self._cert_dir = None
+        self._crt = None
 
         if cert_path is None and key_path is None:
             self._cert_dir = tempfile.mkdtemp()
@@ -58,8 +61,6 @@ class TranscriptionClient:
         elif cert_path is None or key_path is None:
             raise ValueError("cert_path and key_path must be set together!")
         else:
-            self._cert_dir = None
-            self._crt = None
             self._cert_path = cert_path
             self._key_path = key_path
 
@@ -67,8 +68,6 @@ class TranscriptionClient:
 
         # User callbacks
         self._callbacks = {}
-
-        self._http_server = None
 
         self._reset_start()
 
