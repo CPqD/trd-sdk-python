@@ -152,7 +152,7 @@ class TranscriptionApi:
             payload["timeout"] = int(timeout)
         if retries:
             payload["retries"] = int(retries)
-        if crt is not None:
+        if crt is not None or token is not None:
             r = requests.post(
                 test_request, params=payload, auth=self._auth, json={"crt": crt, "token": token}
             )
