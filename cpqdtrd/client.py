@@ -105,7 +105,6 @@ class TranscriptionClient:
                 self._app,
                 log=logging.getLogger("WSGIServer"),
                 error_log=logging.getLogger("WSGIError"),
-                do_handshake_on_connect=False,
             )
         elif self._webhook_protocol == "https":
             # Create certificate and private key
