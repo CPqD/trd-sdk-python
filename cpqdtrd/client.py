@@ -133,14 +133,20 @@ class TranscriptionClient:
             self._webhook_port,
             crt=self._crt,
             token=self._validation_token,
-        )
-        if r.status_code == 200:
-            if not r.json()["reachable"]:
-                raise ConnectionError(
-                    "{}:{} not reachable by the transcription server".format(
-                        self._webhook_host, self._webhook_port
-                    )
+        ).json()
+        if "reachable" not in r:
+            raise ConnectionError(
+                "{}:{} Error in validation. Reason: {}".format(
+                    self._webhook_host, self._webhook_port, r
                 )
+            )
+        if not r["reachable"]:
+            raise ConnectionError(
+                "{}:{} not reachable by the transcription server.".format(
+                    self._webhook_host, self._webhook_port
+                )
+            )
+
 
     def __del__(self):
         self.stop()
