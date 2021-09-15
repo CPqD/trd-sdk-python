@@ -12,7 +12,7 @@ import logging
 import urllib
 import json
 from datetime import datetime
-from typing import List, Dict, Union
+from typing import List, Dict, Optional
 from contextlib import closing
 
 
@@ -138,15 +138,18 @@ class TranscriptionApi:
     def webhook_validate(
         self,
         host: str,
-        port: int,
-        timeout: Union[None, int] = None,
-        retries: Union[None, int] = None,
+        port: Optional[int] = None,
+        timeout: Optional[int] = None,
+        retries: Optional[int] = None,
         token: str = "",
         crt: str = "",
     ):
         test_request = "{}/webhook/validate".format(self._url)
+        webhook_url = host
+        if port is not None:
+            webhook_url += ":{}".format(port)
         payload = {
-            "url": "{}:{}".format(host, port)
+            "url": webhook_url
         }
         if timeout:
             payload["timeout"] = int(timeout)
