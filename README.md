@@ -18,7 +18,7 @@ Testado com Python 3.7. Para dependências, ver _requirements.txt_.
 Para instalação automática do SDK e dependências via `pip`, execute a linha abaixo:
 
 ```shell
-$ pip install git+https://github.com/CPqD/trd-sdk-python.git@v1.0.1
+$ pip install git+https://github.com/CPqD/trd-sdk-python.git@v1.1.0
 ```
 
 #### Servidor WSGI para _callbacks_ via Webhooks
