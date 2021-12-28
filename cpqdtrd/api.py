@@ -31,6 +31,7 @@ class TranscriptionApi:
         retry_period: float = 2,
         sl_host=None,
         sl_port=None,
+        sl_protocol="https",
         sl_token=None,
         sl_username=None,
         sl_password=None,
@@ -42,6 +43,7 @@ class TranscriptionApi:
         self._url = url
         self._sl_host = sl_host
         self._sl_port = sl_port
+        self._sl_protocol = sl_protocol
         self._sl_username = sl_username
         self._sl_password = sl_password
 
@@ -249,9 +251,10 @@ class TranscriptionApi:
             self._sl_port,
             self._sl_username,
             self._sl_password,
+            self._sl_protocol
         ):
             request = requests.post(
-                url="http://{}:{}/auth/token".format(self._sl_host, self._sl_port),
+                url="{}://{}:{}/auth/token".format(self._sl_protocol, self._sl_host, self._sl_port),
                 auth=(self._sl_username, self._sl_password),
                 timeout=10,
             )
