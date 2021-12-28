@@ -10,7 +10,9 @@ import requests
 import time
 import logging
 import urllib
-from typing import List
+import json
+from datetime import datetime
+from typing import List, Dict, Optional
 from contextlib import closing
 
 
@@ -40,7 +42,8 @@ class TranscriptionApi:
         self._log = logging.getLogger("cpqdtrd.api")
         while not ok:
             try:
-                self.audiofile_list()
+                for r in self.query():
+                    self._log.debug("response: {}".format(r))
                 ok = True
             except Exception as e:
                 self._log.warning("Exception on API list request: {}".format(e))
@@ -51,127 +54,80 @@ class TranscriptionApi:
                     msg = "API call retries exceeded"
                     raise self.TimeoutException(msg)
 
-    def audiofile_list(self, batch: str = ""):
-        if batch:
-            return requests.get(
-                "{}/audiofile/list/batch/{}".format(self._url, batch), auth=self._auth
-            )
-        else:
-            return requests.get("{}/audiofile/list/".format(self._url), auth=self._auth)
+    def create(self, file_path: str, tag: str = None, config: List[str] = None, callbacks_url: List = []):
+        upload_request = "{}/job/create".format(self._url)
+        if tag:
+            upload_request += "?tag={}".format(tag)
 
-    def audiofile_get(self, uid: str):
-        return requests.get("{}/audiofile/{}".format(self._url, uid), auth=self._auth)
+        data = {}
+        if config:
+            data["config"] = config
 
-    def audiofile_create(self, file_name: str):
-        return requests.get(
-            "{}/audiofile/create/{}".format(self._url, file_name), auth=self._auth
-        )
+        if len(callbacks_url) > 0:
+            data["callback_urls"] = ','.join(callbacks_url)
 
-    def audiofile_create_batch(self, batch: str):
-        return requests.get(
-            "{}/audiofile/create/batch/{}".format(self._url, batch), auth=self._auth
-        )
-
-    def audiofile_upload(self, file_path: str, batch: str = ""):
-        upload_request = "{}/audiofile/upload/".format(self._url)
-        if batch:
-            data = {"batch": batch}
-        else:
-            data = {}
         with open(file_path, "rb") as f:
-            files = [("files", f)]
+            upload_file = [("upload_file", f)]
             return requests.post(
-                upload_request, data=data, files=files, auth=self._auth
+                upload_request, data=data, files=upload_file, auth=self._auth
             )
 
-    def audiofile_delete(self, uid: str, delete_on_disk: bool = False):
-        delete_request = "{}/audiofile/delete/{}"
-        if delete_on_disk:
-            delete_request += "?deleteOnDisk=true"
-        return requests.delete(delete_request.format(self._url, uid), auth=self._auth)
+    def list_jobs(self, page: int = 1, limit: int = 100, tag: str = None):
+        params = {"page": page, "limit": limit}
+        if tag:
+            params["tag"] = tag
+        return requests.get("{}/job".format(self._url), params=params, auth=self._auth)
 
-    def audiofile_delete_batch(self, batch: str, delete_on_disk: bool = False):
-        delete_request = "{}/audiofile/delete/batch/{}"
-        if delete_on_disk:
-            delete_request += "?deleteOnDisk=true"
-        return requests.delete(delete_request.format(self._url, batch), auth=self._auth)
+    def status(self, job_id: str):
+        return requests.get("{}/job/status/{}".format(self._url, job_id), auth=self._auth)
 
-    def transcription_start(self, audio_id: str, request_args: dict = {}):
-        start_request = "{}/transcription/start/audiofile/{}"
-        sep = "?"
-        for arg, val in request_args.items():
-            if arg == "webhook" and type(val) is list:
-                for w in val:
-                    start_request += sep
-                    sep = "&"
-                    start_request += "webhook={}".format(w)
-            else:
-                start_request += sep
-                sep = "&"
-                start_request += "{}={}".format(arg, val)
-        return requests.get(start_request.format(self._url, audio_id), auth=self._auth)
+    def result(self, job_id: str):
+        return requests.get("{}/job/result/{}".format(self._url, job_id), auth=self._auth)
 
-    def transcription_start_batch(
-        self, batch: str, word_hints: str = "", lm_url: str = ""
+    def stop(self, job_id: str):
+        return requests.post("{}/job/stop/{}".format(self._url, job_id), auth=self._auth)
+
+    def retry(self, job_id: str):
+        return requests.post("{}/job/retry/{}".format(self._url, job_id), auth=self._auth)
+
+    def delete(self, job_id: str):
+        return requests.delete("{}/job/{}".format(self._url, job_id), auth=self._auth)
+
+    def query(
+        self,
+        tags: List[str] = [],
+        filenames: List[str] = [],
+        statuses: List[str] = [],
+        projection: List[str] = [],
+        get_result: bool = False,
+        page: int = 1,
+        limit: int = 100,
+        start_date: datetime = None,
+        end_date: datetime = None,
     ):
-        start_request = "{}/transcription/start/batch/{}"
-        sep = "?"
-        if lm_url:
-            start_request += sep
-            sep = "&"
-            start_request += "lm.uri={}".format(lm_url)
-        if word_hints:
-            start_request += sep
-            start_request += "hints.words={}".format(word_hints)
-        return requests.get(start_request.format(self._url, batch), auth=self._auth)
+        request = "{}/query/job".format(self._url)
 
-    def transcription_status(self, audio_id: str):
-        return requests.get(
-            "{}/transcription/status/audiofile/{}".format(self._url, audio_id),
-            auth=self._auth,
-        )
+        params = {}
+        if tags:
+            params["tag"] = tags
+        if filenames:
+            params["filenames"] = filenames
+        if statuses:
+            params["status"] = statuses
+        if projection:
+            params["projection"] = projection
+        if get_result:
+            params["result"] = "true"
 
-    def transcription_status_batch(self, batch: str):
-        return requests.get(
-            "{}/transcription/status/batch/{}".format(self._url, batch), auth=self._auth
-        )
+        params["page"] = page
+        params["limit"] = limit
 
-    def transcription_reset(self, audio_id: str, hard: bool = False):
-        reset_request = "{}/transcription/reset/audiofile/{}"
-        if hard:
-            reset_request += "?hard=true"
-        return requests.get(reset_request.format(self._url, audio_id), auth=self._auth)
+        if start_date:
+            params["start_date"] = start_date.isoformat()
+        if end_date:
+            params["end_date"] = end_date.isoformat()
 
-    def transcription_reset_batch(self, batch: str, hard: bool = False):
-        reset_request = "{}/transcription/reset/batch/{}"
-        if hard:
-            reset_request += "?hard=true"
-        return requests.get(reset_request.format(self._url, batch), auth=self._auth)
-
-    def transcription_result(self, audio_id: str, is_csv: bool = False):
-        result_request = "{}/transcription/result/audiofile/{}".format(
-            self._url, audio_id
-        )
-        if is_csv:
-            result_request += "?format=csv"
-        return requests.get(result_request, auth=self._auth)
-
-    def transcription_result_batch(self, batch: str, format: str = ""):
-        result_request = "{}/transcription/result/batch/{}".format(self._url, batch)
-        if format != "":
-            result_request += "?format=" + format
-        return requests.get(result_request, auth=self._auth)
-
-    def query_collection(self, collection: str, query: dict, project: list = []):
-        query_request = "{}/query/collection/{}".format(self._url, collection)
-        sep = "?"
-        for k in query:
-            query_request += sep + "{}={}".format(k, query[k])
-            sep = "&"
-        for p in project:
-            query_request += sep + "project={}".format(p)
-            sep = "&"
-        with closing(requests.get(query_request, stream=True, auth=self._auth)) as r:
+        with closing(requests.get(request, params=params, stream=True, auth=self._auth)) as r:
             for line in r.iter_lines():
                 yield line
 
@@ -180,19 +136,29 @@ class TranscriptionApi:
         return requests.get(whoami_request, auth=self._auth)
 
     def webhook_validate(
-        self, host, port, timeout=None, retries=None, token="", crt=""
+        self,
+        host: str,
+        port: Optional[int] = None,
+        timeout: Optional[int] = None,
+        retries: Optional[int] = None,
+        token: str = "",
+        crt: str = "",
     ):
-        test_request = "{}/webhook/validate/{}/{}".format(self._url, host, port)
-        sep = "?"
-        if timeout is not None:
-            test_request += sep + "timeout={}".format(timeout)
-            sep = "&"
-        if retries is not None:
-            test_request += sep + "retries={}".format(retries)
-            sep = "&"
-        if crt is not None:
-            return requests.post(
-                test_request, auth=self._auth, json={"crt": crt, "token": token}
+        test_request = "{}/webhook/validate".format(self._url)
+        webhook_url = host
+        if port is not None:
+            webhook_url += ":{}".format(port)
+        payload = {
+            "url": webhook_url
+        }
+        if timeout:
+            payload["timeout"] = int(timeout)
+        if retries:
+            payload["retries"] = int(retries)
+        if crt is not None or token is not None:
+            r = requests.post(
+                test_request, params=payload, auth=self._auth, json={"crt": crt, "token": token}
             )
         else:
-            return requests.get(test_request, auth=self._auth)
+            r = requests.get(test_request, params=payload, auth=self._auth)
+        return r

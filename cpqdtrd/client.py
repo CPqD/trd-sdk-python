@@ -46,10 +46,13 @@ class TranscriptionClient:
         if webhook_host is not None:
             self._webhook_host = webhook_host
         else:
-            self._webhook_host = self.api.webhook_whoami().json()
+            self._webhook_host = self.api.webhook_whoami().json()["address"]
         self._webhook_port = webhook_port
         self._webhook_listener = webhook_listener
         self._webhook_protocol = webhook_protocol
+        self._http_server = None
+        self._cert_dir = None
+        self._crt = None
 
         if cert_path is None and key_path is None:
             self._cert_dir = tempfile.mkdtemp()
@@ -58,15 +61,13 @@ class TranscriptionClient:
         elif cert_path is None or key_path is None:
             raise ValueError("cert_path and key_path must be set together!")
         else:
-            self._cert_dir = None
-            self._crt = None
             self._cert_path = cert_path
             self._key_path = key_path
 
         self._log = logging.getLogger(self.__class__.__name__)
-        self._callbacks = {}
 
-        self._http_server = None
+        # User callbacks
+        self._callbacks = {}
 
         self._reset_start()
 
@@ -77,22 +78,22 @@ class TranscriptionClient:
 
         self._app = Flask("cpqdtrd", **self._flask_kwargs)
 
-        @self._app.route("/<audio_id>", methods=["POST"])
-        def root_callback(audio_id):
-            # Root callback is only responsible for signaling that the audiofile will
+        @self._app.route("/<job_id>", methods=["POST"])
+        def root_callback(job_id):
+            # Root callback is only responsible for signaling that the job will
             # no longer be processed - either by finished, failed, reset or deleted
             # states.
             result = request.json
             if "token" not in result or result["token"] != self._validation_token:
                 raise ValueError("Invalid token")
             if (
-                audio_id in self._result_events
-                and "__root__" in self._result_events[audio_id]
+                job_id in self._result_events
+                and "__root__" in self._result_events[job_id]
             ):
-                self._result_events[audio_id]["__root__"].set()
-                del self._result_events[audio_id]["__root__"]
-                if not self._result_events[audio_id]:
-                    del self._result_events[audio_id]
+                self._result_events[job_id]["__root__"].set()
+                del self._result_events[job_id]["__root__"]
+                if not self._result_events[job_id]:
+                    del self._result_events[job_id]
             return "OK", 200
 
         for name, callback in list(self._callbacks.items()):
@@ -104,7 +105,6 @@ class TranscriptionClient:
                 self._app,
                 log=logging.getLogger("WSGIServer"),
                 error_log=logging.getLogger("WSGIError"),
-                do_handshake_on_connect=False,
             )
         elif self._webhook_protocol == "https":
             # Create certificate and private key
@@ -128,17 +128,25 @@ class TranscriptionClient:
 
         self._http_server.start()
         self._validation_token = str(uuid.uuid4())
-        if not self.api.webhook_validate(
-            self._webhook_host,
+        r = self.api.webhook_validate(
+            "{}://{}".format(self._webhook_protocol, self._webhook_host),
             self._webhook_port,
             crt=self._crt,
             token=self._validation_token,
-        ).json():
+        ).json()
+        if "reachable" not in r:
             raise ConnectionError(
-                "{}:{} not reachable by the transcription server".format(
+                "{}:{} Error in validation. Reason: {}".format(
+                    self._webhook_host, self._webhook_port, r
+                )
+            )
+        if not r["reachable"]:
+            raise ConnectionError(
+                "{}:{} not reachable by the transcription server.".format(
                     self._webhook_host, self._webhook_port
                 )
             )
+
 
     def __del__(self):
         self.stop()
@@ -151,6 +159,7 @@ class TranscriptionClient:
 
     def register_callback(self, callback, name=None):
         """Register a callback with optional name."""
+        #print("register_callback:", callback, name)
         if name is None:
             name = "_callback_{}".format(len(self._callbacks))
         elif name[:9] == "_callback":
@@ -162,30 +171,30 @@ class TranscriptionClient:
         # we do it while the WSGI is still up.
         # Instead of using the decorator, we explicitly use the add_url_rule method to
         # avoid endpoint name collision.
-        def new_callback(audio_id):
+        def new_callback(job_id):
             try:
                 r = request.json
                 if "token" not in r or r["token"] != self._validation_token:
                     raise ValueError("Invalid token")
-                callback(audio_id, r)
+                callback(job_id, r)
             except Exception:
                 raise
             finally:  # Emit events regardless of the success of the callback op
                 if (
-                    audio_id in self._result_events
-                    and name in self._result_events[audio_id]
+                    job_id in self._result_events
+                    and name in self._result_events[job_id]
                 ):
-                    self._result_events[audio_id][name].set()
-                    del self._result_events[audio_id][name]
-                    if not self._result_events[audio_id]:
-                        del self._result_events[audio_id]
+                    self._result_events[job_id][name].set()
+                    del self._result_events[job_id][name]
+                    if not self._result_events[job_id]:
+                        del self._result_events[job_id]
 
             # Return status only if successful, so that any callback errors are
             # logged in the transcription server.
             return "OK", 200
 
         self._app.add_url_rule(
-            "/{}/<audio_id>".format(name), name, new_callback, methods=["POST"]
+            "/{}/<job_id>".format(name), name, new_callback, methods=["POST"]
         )
 
     def unregister_callback(self, *callback_names):
@@ -213,7 +222,7 @@ class TranscriptionClient:
             del self._callbacks[name]
         self._reset_start()
 
-    def transcribe(self, path, timeout="auto", delete_after=True):
+    def transcribe(self, path, tag=None, config=None, timeout="auto", delete_after=True):
         """
         Transcribe an audio file.
 
@@ -228,7 +237,7 @@ class TranscriptionClient:
         timeout : str or float, optional
             Sets a timeout (in seconds) fot the result operation
 
-            If < 0, starts transcription and returns promptly only with the audio_id
+            If < 0, starts transcription and returns promptly only with the job_id
 
             If == 0, waits indefinitely
 
@@ -245,7 +254,7 @@ class TranscriptionClient:
 
         Returns
         -------
-        Only the audio id if timeout < 0, or a tuple (audio_id: str, result: dict)
+        Only the job id if timeout < 0, or a tuple (job_id: str, result: dict)
         """
         if timeout == "auto":
             with sf.SoundFile(path) as f:
@@ -254,13 +263,6 @@ class TranscriptionClient:
         elif not isinstance(timeout, numbers.Number):
             raise ValueError("Invalid value for timeout: {}".format(timeout))
 
-        # Upload audio file. Currently only expects
-        r = self.api.audiofile_upload(path)
-        r.raise_for_status()
-        audio_id = next(iter(r.json().values())).split("/")[-1]
-        if not ObjectId.is_valid(audio_id):
-            raise ValueError(audio_id)
-
         # Set webhooks in the request
         webhook_root = "{}://{}:{}".format(
             self._webhook_protocol, self._webhook_host, self._webhook_port
@@ -268,25 +270,32 @@ class TranscriptionClient:
         webhooks = [webhook_root]
         webhooks += ["{}/{}".format(webhook_root, name) for name in self._callbacks]
 
-        # Init events and start transcription. Return audio_id if timeout < 0
-        self._result_events[audio_id]["__root__"] = Event()
-        for name in self._callbacks:
-            self._result_events[audio_id][name] = Event()
-        self.api.transcription_start(audio_id, request_args={"webhook": webhooks})
-        if timeout < 0:
-            return audio_id
-        return audio_id, self.wait_result(audio_id, timeout, delete_after)
+        # Upload audio file. Currently only expects
+        r = self.api.create(path, tag=tag, config=config, callbacks_url=webhooks)
+        r.raise_for_status()
+        job = r.json()["job"]
+        job_id = job["id"]
 
-    def wait_result(self, audio_id, timeout=0, delete_after=True):
+        # Init events and start transcription. Return job_id if timeout < 0
+        self._result_events[job_id]["__root__"] = Event()
+        for name in self._callbacks:
+            self._result_events[job_id][name] = Event()
+
+        if timeout < 0:
+            return job_id
+
+        return job_id, self.wait_result(job_id, timeout, delete_after)
+
+    def wait_result(self, job_id, timeout=0, delete_after=True):
         """
-        Wait for the result of an audio file.
+        Wait for the result of an audio file (Job).
 
         If callbacks are set, also waits for all callbacks to finish.
 
         Parameters
         ----------
-        audio_id : str
-            The ID of the audio file to wait for.
+        job_id : str
+            The ID of the job to wait for.
         timeout : float, optional (in seconds)
             Sets a timeout (in seconds) for the result operation.
 
@@ -303,17 +312,17 @@ class TranscriptionClient:
         -------
         The transcription result as a dict or False if timeout < 0 and not completed.
         """
-        if audio_id in self._result_events:
+        if job_id in self._result_events:
             if timeout > 0:
-                for event in list(self._result_events[audio_id].values()):
+                for event in list(self._result_events[job_id].values()):
                     if not event.wait(timeout):
                         return False
             elif timeout < 0:
                 return False
             else:
-                for event in list(self._result_events[audio_id].values()):
+                for event in list(self._result_events[job_id].values()):
                     event.wait()
-        result = self.api.transcription_result(audio_id).json()
+        result = self.api.result(job_id).json()
         if delete_after:
-            self.api.audiofile_delete(audio_id)
+            self.api.delete(job_id)
         return result
