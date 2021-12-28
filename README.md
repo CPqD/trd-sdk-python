@@ -18,7 +18,7 @@ Testado com Python 3.7. Para dependências, ver _requirements.txt_.
 Para instalação automática do SDK e dependências via `pip`, execute a linha abaixo:
 
 ```shell
-$ pip install git+https://github.com/CPqD/trd-sdk-python.git@v1.0.1
+$ pip install git+https://github.com/CPqD/trd-sdk-python.git@v1.1.0
 ```
 
 #### Servidor WSGI para _callbacks_ via Webhooks
@@ -150,6 +150,28 @@ for id in c.results:
         c.results[id]["job"]["filename"],
         c.results[id]["segments"],
         )
+    )
+```
+
+## Autenticação JWT
+O SDK passa a fornecer autenticação utilizando tokens de autenticação em 
+formato JWT. Os tokens são gerados automaticamente com a inicialização da classe 
+de transcrição, além disso em cada requisição são feitas validações do tempo de 
+vida do token.
+
+```python
+from cpqdtrd import TranscriptionClient
+
+client = TranscriptionClient(
+    api_url="https://speech.cpqd.com.br/trd/v3",
+    webhook_port=443, # Outbound, precisa de redirecionamento para a WAN
+    webhook_host="100.100.100.100", # IP externo ou DNS
+    webhook_listener='0.0.0.0',
+    webhook_protocol="https",
+    sl_username="<Usuário da licença>",
+    sl_password="<Senha da licença>",
+    sl_host="<Servidor de Autenticação>",
+    sl_port="<Porta de Autenticação>"
     )
 ```
 
