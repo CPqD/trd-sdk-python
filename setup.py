@@ -8,7 +8,7 @@ with open("requirements.txt") as f:
 
 setup(
     name="cpqdtrd",
-    version="0.0.1",
+    version="1.0.0",
     description="CPqD Dialog Transcription Client",
     install_requires=install_requires,
     author="Akira Miasato",
