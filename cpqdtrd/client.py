@@ -34,13 +34,27 @@ class TranscriptionClient:
         password=None,
         cert_path=None,
         key_path=None,
+        sl_host=None,
+        sl_port=None,
+        sl_token=None,
+        sl_username=None,
+        sl_password=None,
         **flask_kwargs
     ):
+        self._log = logging.getLogger(self.__class__.__name__)
+
         self._result_events = dd(dict)  # Event variable dict
 
         self._flask_kwargs = flask_kwargs
         self.api = TranscriptionApi(
-            api_url, username=username, password=password
+            url=api_url,
+            username=username,
+            password=password,
+            sl_host=sl_host,
+            sl_port=sl_port,
+            sl_token=sl_token,
+            sl_username=sl_username,
+            sl_password=sl_password,
         )
 
         if webhook_host is not None:
@@ -63,8 +77,6 @@ class TranscriptionClient:
         else:
             self._cert_path = cert_path
             self._key_path = key_path
-
-        self._log = logging.getLogger(self.__class__.__name__)
 
         # User callbacks
         self._callbacks = {}
@@ -147,7 +159,6 @@ class TranscriptionClient:
                 )
             )
 
-
     def __del__(self):
         self.stop()
 
@@ -159,7 +170,7 @@ class TranscriptionClient:
 
     def register_callback(self, callback, name=None):
         """Register a callback with optional name."""
-        #print("register_callback:", callback, name)
+        # print("register_callback:", callback, name)
         if name is None:
             name = "_callback_{}".format(len(self._callbacks))
         elif name[:9] == "_callback":
@@ -222,7 +233,9 @@ class TranscriptionClient:
             del self._callbacks[name]
         self._reset_start()
 
-    def transcribe(self, path, tag=None, config=None, timeout="auto", delete_after=True):
+    def transcribe(
+        self, path, tag=None, config=None, timeout="auto", delete_after=True
+    ):
         """
         Transcribe an audio file.
 
