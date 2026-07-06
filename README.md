@@ -14,11 +14,11 @@ para as chamadas de callback via Webhooks.
 
 ## Requisitos e instalação
 
-Testado com Python 3.7. Para dependências, ver _requirements.txt_.
+Testado com Python 3.12. Para dependências, ver _requirements.txt_.
 Para instalação automática do SDK e dependências via `pip`, execute a linha abaixo:
 
 ```shell
-$ pip install git+https://github.com/CPqD/trd-sdk-python.git@v1.1.0
+$ pip install git+https://github.com/CPqD/trd-sdk-python.git@v1.2.0
 ```
 
 #### Servidor WSGI para _callbacks_ via Webhooks
@@ -171,7 +171,9 @@ client = TranscriptionClient(
     sl_username="<Usuário da licença>",
     sl_password="<Senha da licença>",
     sl_host="<Servidor de Autenticação>",
-    sl_port="<Porta de Autenticação>"
+    sl_port="<Porta de Autenticação>",
+    sl_protocol="https", # Opcional: Padrão é "https"
+    sl_token=None        # Opcional: Insira um token válido caso não queira utilizar as credenciais acima para gerar um novo
     )
 ```
 
